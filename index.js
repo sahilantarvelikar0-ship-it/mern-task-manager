@@ -59,7 +59,9 @@ app.delete('/tasks/:id', auth, async (req, res) => {
 });
 
 // MongoDB Connection
-mongoose.connect(process.env.MONGO_URI)
+mongoose.connect(process.env.MONGO_URI, {
+  serverSelectionTimeoutMS: 5000,
+})
   .then(() => console.log('MongoDB Connected Successfully!'))
   .catch((err) => console.error('MongoDB Connection Error:', err));
 

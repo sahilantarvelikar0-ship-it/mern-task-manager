@@ -1,117 +1,83 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import axios from 'axios';
-import Auth from './components/Auth';
 
-function App() {
-  const [token, setToken] = useState(localStorage.getItem('token') || '');
-  const [tasks, setTasks] = useState([]);
-  const [newTaskTitle, setNewTaskTitle] = useState('');
+const API_BASE_URL = 'https://mern-task-manager-wa8z.onrender.com';
 
-  const authConfig = {
-    headers: { Authorization: `Bearer ${token}` }
-  };
+function Auth({ setToken }) {
+  const [isLogin, setIsLogin] = useState(true);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
 
-  const fetchTasks = async () => {
-    try {
-      const res = await axios.get('http://localhost:3000/tasks', authConfig);
-      setTasks(res.data);
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  useEffect(() => {
-    if (token) fetchTasks();
-  }, [token]);
-
-  const handleAddTask = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!newTaskTitle.trim()) return;
+    setError('');
+
     try {
-      await axios.post('http://localhost:3000/tasks', { title: newTaskTitle }, authConfig);
-      setNewTaskTitle('');
-      fetchTasks();
+      if (isLogin) {
+        // Direct Login Call
+        const res = await axios.post(`${API_BASE_URL}/api/auth/login`, { email, password });
+        const tokenValue = res.data.token;
+
+        if (tokenValue) {
+          localStorage.setItem('token', tokenValue);
+          setToken(tokenValue);
+        } else {
+          setError('Token missing in login response');
+        }
+      } else {
+        // Step 1: Register User
+        await axios.post(`${API_BASE_URL}/api/auth/register`, { email, password });
+
+        // Step 2: Auto-login right after registration to get token
+        const loginRes = await axios.post(`${API_BASE_URL}/api/auth/login`, { email, password });
+        const tokenValue = loginRes.data.token;
+
+        if (tokenValue) {
+          localStorage.setItem('token', tokenValue);
+          setToken(tokenValue);
+        } else {
+          setIsLogin(true); // Switch to login view if token missing
+          alert('Registered successfully! Please login.');
+        }
+      }
     } catch (err) {
-      alert(err.response?.data?.message || 'Error adding task');
+      setError(err.response?.data?.message || 'Authentication failed');
     }
   };
-
-  const handleToggleTask = async (id, currentStatus) => {
-    try {
-      await axios.put(`http://localhost:3000/tasks/${id}`, { completed: !currentStatus }, authConfig);
-      fetchTasks();
-    } catch (err) {
-      alert(err.response?.data?.message || 'Error updating task');
-    }
-  };
-
-  const handleDeleteTask = async (id) => {
-    try {
-      await axios.delete(`http://localhost:3000/tasks/${id}`, authConfig);
-      fetchTasks();
-    } catch (err) {
-      alert(err.response?.data?.message || 'Error deleting task');
-    }
-  };
-
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    setToken('');
-    setTasks([]);
-  };
-
-  if (!token) {
-    return <Auth setToken={setToken} />;
-  }
 
   return (
-    <div className="app-container">
-      <div className="header">
-        <h2>My Tasks</h2>
-        <button onClick={handleLogout} className="logout-btn">Logout</button>
-      </div>
-
-      <form onSubmit={handleAddTask} className="task-form">
+    <div className="container" style={{ maxWidth: '400px', margin: '50px auto', textAlign: 'center' }}>
+      <h2>{isLogin ? 'Login' : 'Register'}</h2>
+      {error && <p style={{ color: '#ef4444', marginBottom: '10px' }}>{error}</p>}
+      
+      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
         <input
-          type="text"
-          placeholder="Enter new task..."
-          value={newTaskTitle}
-          onChange={(e) => setNewTaskTitle(e.target.value)}
-          className="task-input"
+          type="email"
+          placeholder="Email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
           required
+          style={{ padding: '10px' }}
         />
-        <button type="submit" className="add-btn">Add</button>
+        <input
+          type="password"
+          placeholder="Password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+          style={{ padding: '10px' }}
+        />
+        <button type="submit" style={{ padding: '10px', background: '#3b82f6', color: '#fff', border: 'none', cursor: 'pointer' }}>
+          {isLogin ? 'Login' : 'Register'}
+        </button>
       </form>
 
-      <ul className="task-list">
-        {tasks.length === 0 ? (
-          <p style={{ color: '#94a3b8', textAlign: 'center' }}>No tasks found. Add one above!</p>
-        ) : (
-          tasks.map((task) => (
-            <li key={task._id} className="task-item">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <input
-                  type="checkbox"
-                  checked={task.completed}
-                  onChange={() => handleToggleTask(task._id, task.completed)}
-                  style={{ cursor: 'pointer', width: '18px', height: '18px' }}
-                />
-                <span style={{ 
-                  textDecoration: task.completed ? 'line-through' : 'none', 
-                  color: task.completed ? '#64748b' : '#f8fafc' 
-                }}>
-                  {task.title}
-                </span>
-              </div>
-              <button onClick={() => handleDeleteTask(task._id)} className="delete-btn">
-                Delete
-              </button>
-            </li>
-          ))
-        )}
-      </ul>
+      <p style={{ marginTop: '15px', cursor: 'pointer', color: '#60a5fa' }} onClick={() => setIsLogin(!isLogin)}>
+        {isLogin ? "Don't have an account? Register" : 'Already have an account? Login'}
+      </p>
     </div>
   );
 }
 
-export default App;
+export default Auth;
