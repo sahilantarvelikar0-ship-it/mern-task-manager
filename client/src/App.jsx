@@ -1,101 +1,114 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
+import Auth from './components/Auth';
 
 function App() {
+  const [token, setToken] = useState(localStorage.getItem('token') || '');
   const [tasks, setTasks] = useState([]);
-  const [title, setTitle] = useState('');
+  const [newTaskTitle, setNewTaskTitle] = useState('');
+
+  const authConfig = {
+    headers: { Authorization: `Bearer ${token}` }
+  };
 
   const fetchTasks = async () => {
     try {
-      const res = await axios.get('http://localhost:3000/tasks');
+      const res = await axios.get('http://localhost:3000/tasks', authConfig);
       setTasks(res.data);
     } catch (err) {
-      console.error('Fetch error:', err);
+      console.error(err);
     }
   };
 
   useEffect(() => {
-    fetchTasks();
-  }, []);
+    if (token) fetchTasks();
+  }, [token]);
 
-  const addTask = async (e) => {
+  const handleAddTask = async (e) => {
     e.preventDefault();
-    if (!title.trim()) return;
-
+    if (!newTaskTitle.trim()) return;
     try {
-      const res = await axios.post('http://localhost:3000/tasks', { title });
-      setTasks([...tasks, res.data]);
-      setTitle('');
+      await axios.post('http://localhost:3000/tasks', { title: newTaskTitle }, authConfig);
+      setNewTaskTitle('');
+      fetchTasks();
     } catch (err) {
-      console.error('Add task error:', err);
+      alert(err.response?.data?.message || 'Error adding task');
     }
   };
 
-  const toggleTask = async (id, completed) => {
+  const handleToggleTask = async (id, currentStatus) => {
     try {
-      const res = await axios.put(`http://localhost:3000/tasks/${id}`, { completed: !completed });
-      setTasks(tasks.map((task) => (task._id === id ? res.data : task)));
+      await axios.put(`http://localhost:3000/tasks/${id}`, { completed: !currentStatus }, authConfig);
+      fetchTasks();
     } catch (err) {
-      console.error('Update error:', err);
+      alert(err.response?.data?.message || 'Error updating task');
     }
   };
 
-  const deleteTask = async (id) => {
+  const handleDeleteTask = async (id) => {
     try {
-      await axios.delete(`http://localhost:3000/tasks/${id}`);
-      setTasks(tasks.filter((task) => task._id !== id));
+      await axios.delete(`http://localhost:3000/tasks/${id}`, authConfig);
+      fetchTasks();
     } catch (err) {
-      console.error('Delete error:', err);
+      alert(err.response?.data?.message || 'Error deleting task');
     }
   };
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    setToken('');
+    setTasks([]);
+  };
+
+  if (!token) {
+    return <Auth setToken={setToken} />;
+  }
 
   return (
-    <div style={{ padding: '2rem', fontFamily: 'sans-serif', maxWidth: '600px', margin: 'auto' }}>
-      <h1>Task Manager</h1>
+    <div className="app-container">
+      <div className="header">
+        <h2>My Tasks</h2>
+        <button onClick={handleLogout} className="logout-btn">Logout</button>
+      </div>
 
-      <form onSubmit={addTask} style={{ display: 'flex', gap: '10px', marginBottom: '1.5rem' }}>
+      <form onSubmit={handleAddTask} className="task-form">
         <input
           type="text"
-          placeholder="Add a new task..."
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          style={{ flex: 1, padding: '0.6rem', fontSize: '1rem' }}
+          placeholder="Enter new task..."
+          value={newTaskTitle}
+          onChange={(e) => setNewTaskTitle(e.target.value)}
+          className="task-input"
+          required
         />
-        <button type="submit" style={{ padding: '0.6rem 1.2rem', cursor: 'pointer' }}>
-          Add Task
-        </button>
+        <button type="submit" className="add-btn">Add</button>
       </form>
 
-      <ul style={{ listStyle: 'none', padding: 0 }}>
-        {tasks.map((task) => (
-          <li
-            key={task._id}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: '0.5rem 0',
-              borderBottom: '1px solid #ccc'
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <input
-                type="checkbox"
-                checked={task.completed || false}
-                onChange={() => toggleTask(task._id, task.completed)}
-              />
-              <span style={{ textDecoration: task.completed ? 'line-through' : 'none' }}>
-                {task.title}
-              </span>
-            </div>
-            <button
-              onClick={() => deleteTask(task._id)}
-              style={{ color: 'red', border: 'none', background: 'none', cursor: 'pointer' }}
-            >
-              Delete
-            </button>
-          </li>
-        ))}
+      <ul className="task-list">
+        {tasks.length === 0 ? (
+          <p style={{ color: '#94a3b8', textAlign: 'center' }}>No tasks found. Add one above!</p>
+        ) : (
+          tasks.map((task) => (
+            <li key={task._id} className="task-item">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <input
+                  type="checkbox"
+                  checked={task.completed}
+                  onChange={() => handleToggleTask(task._id, task.completed)}
+                  style={{ cursor: 'pointer', width: '18px', height: '18px' }}
+                />
+                <span style={{ 
+                  textDecoration: task.completed ? 'line-through' : 'none', 
+                  color: task.completed ? '#64748b' : '#f8fafc' 
+                }}>
+                  {task.title}
+                </span>
+              </div>
+              <button onClick={() => handleDeleteTask(task._id)} className="delete-btn">
+                Delete
+              </button>
+            </li>
+          ))
+        )}
       </ul>
     </div>
   );
